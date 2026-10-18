@@ -27,6 +27,9 @@ Remote SSH extension. HTTP port forwarding and Cursor's SSH connection are
 separate connections; preserve the existing ``scenario`` and ``key`` query
 parameters when changing the HTTP origin for a tunnel.
 
+Remote file links include ``:1`` so Cursor opens the file at line 1 instead
+of treating its path as a folder.
+
 With no SSH destination, Cursor opens the preview on the browsing machine.
 Use this mode only when Reef runs on that same machine.
 

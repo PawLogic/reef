@@ -37,7 +37,8 @@ def cursor_url(path: Path, ssh_url: str = "") -> str:
     if remote.port is not None:
         connection["port"] = remote.port
     authority = json.dumps(connection, separators=(",", ":"), ensure_ascii=False).encode().hex()
-    return "cursor://vscode-remote/ssh-remote+" + authority + quote(str(path), safe="/")
+    # Cursor treats a remote protocol path as a folder unless it ends with a line number.
+    return "cursor://vscode-remote/ssh-remote+" + authority + quote(str(path), safe="/") + ":1"
 
 
 def prepare_previews(files: Mapping[str, str], paths: Sequence[str], *, ssh_url: str = "") -> dict[str, FilePreview]:
