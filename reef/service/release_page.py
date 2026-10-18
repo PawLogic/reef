@@ -19,7 +19,6 @@ scenario header is the whole read.
 
 from __future__ import annotations
 
-import difflib
 import json
 from collections.abc import Mapping, Sequence
 from typing import Any
@@ -35,6 +34,9 @@ from reef.harness.step_result import (
     unscored_failures,
 )
 from reef.service.page_chrome import document, escape, requires_table, stamp, status_label, status_span, tone
+from reef.service.release_review import diff_block as _diff_block
+from reef.service.release_review import evaluation_html, file_changes, input_html
+from reef.service.review_files import FilePreview
 
 #: The evaluation numbers the Result section lists, in this order, when the row carries them: a comparison writes
 #: wins, losses and ties; a floor writes passed, failed and floor_score, and evaluation_sides when it ran one side only.
@@ -136,6 +138,7 @@ font:12px/1.7 ui-monospace,SFMono-Regular,Menlo,monospace}
 .diff .add{color:var(--good);background:var(--good-bg);display:block}
 .diff .del{color:var(--bad);background:var(--bad-bg);display:block}
 .diff .hunk{color:var(--mute);display:block}
+.diff .context{display:block}
 .note{font-size:11px;color:var(--mute);margin:0 0 10px;overflow-wrap:anywhere}
 .outcome-summary{border-radius:8px;background:var(--status-bg);padding:18px;margin-bottom:22px}
 .outcome-summary .status{padding:0;background:none;margin-bottom:10px;font-weight:650}
@@ -291,32 +294,6 @@ def _design(metrics: Mapping[str, Any]) -> str:
     if usage:
         cards += _card("How to use", f'<p class="text">{escape(usage)}</p>\n')
     return cards
-
-
-def _diff_block(path: str, before: str, after: str, before_id: str | None, release_id: Any) -> str:
-    lines = difflib.unified_diff(
-        before.splitlines(),
-        after.splitlines(),
-        fromfile=f"{path} ({_short(before_id)})",
-        tofile=f"{path} ({_short(release_id)})",
-        lineterm="",
-    )
-    rendered = []
-    # By position, not prefix: the first two lines are the file headers, after which "++count;" is an addition.
-    for index, line in enumerate(lines):
-        if index < 2:
-            rendered.append(f'<span class="hunk">{escape(line)}</span>')
-        elif line.startswith("+"):
-            rendered.append(f'<span class="add">{escape(line)}</span>')
-        elif line.startswith("-"):
-            rendered.append(f'<span class="del">{escape(line)}</span>')
-        elif line.startswith("@@"):
-            rendered.append(f'<span class="hunk">{escape(line)}</span>')
-        else:
-            rendered.append(escape(line))
-    if not rendered:
-        return f'<p class="empty">{escape(path)} is unchanged</p>'
-    return '<pre class="diff">' + "\n".join(rendered) + "</pre>"
 
 
 def _mutation_block(
@@ -724,6 +701,10 @@ def build_release_page(
     node_paths: Mapping[str, str] | None = None,
     link_query: Mapping[str, str] | None = None,
     adapter: str = "pi",
+    candidate_files: Mapping[str, str] | None = None,
+    previews: Mapping[str, FilePreview] | None = None,
+    current_scoring: Mapping[str, str] | None = None,
+    input_record_status: str = "not_recorded",
 ) -> str:
     """The page for ``rows[step]``, the rows oldest first as ``GET /reef/harness/releases`` lists them.
 
@@ -753,6 +734,25 @@ def build_release_page(
     # Every "<" leaves the JSON as \\u003c: a code text holding "</script>" would otherwise close the data block.
     data = json.dumps(row, ensure_ascii=True, sort_keys=True).replace("<", "\\u003c")
     served = served_step(rows)
+    changes = _what_changed(row, metrics, entries, before_files, node_paths or {})
+    if (
+        candidate_files is not None
+        and before_files is not None
+        and any(
+            "/skills/" in path and before_files.get(path) != candidate_files.get(path)
+            for path in before_files.keys() | candidate_files.keys()
+        )
+    ):
+        changes = file_changes(
+            before_files,
+            candidate_files,
+            previews or {},
+            before_id=before_release_id(row),
+            release_id=row.get("release_id"),
+        )
+    inputs = ""
+    if row.get("operation") == "training":
+        inputs = _card("Input", input_html(metrics, step, link_query or {}, input_record_status))
     return document(
         title=f"Harness v{step}",
         style=STYLE,
@@ -767,10 +767,12 @@ def build_release_page(
         body=_steps_nav(step, rows, link_query)
         + '<div class="stack">\n'
         + _card("Why", f"{_why(row, metrics)}\n")
+        + inputs
         + _design(metrics)
-        + _card("What changed", f"{_what_changed(row, metrics, entries, before_files, node_paths or {})}\n")
+        + _card("What changed", changes)
         + _review(metrics)
         + _card("Result", f"{result_html(row, metrics, rows)}\n")
+        + _card("Evaluation", evaluation_html(metrics, current_scoring))
         + _card("Setup", f"{_setup(row, metrics, rows, adapter)}\n")
         + _card("Chain", f"{_chain(step, row, rows, link_query)}\n")
         + "</div>\n",

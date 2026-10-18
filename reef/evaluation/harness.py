@@ -43,6 +43,7 @@ from reef.core.evaluation import (
 from reef.core.plugins import ConfiguredPlugin, PluginConfigError
 from reef.core.tasks import primary_reward
 from reef.evaluation.evaluators import BackendEvaluateMixin, SelectionPlugin
+from reef.evaluation.scoring_review import scoring_rule
 from reef.harness.adapters.descriptor import AdapterDescriptor
 from reef.harness.episodes.model_binding import ModelBindings
 from reef.harness.episodes.run import EpisodeError, EpisodeResult, TrajectoryKeepError, run_episode
@@ -501,6 +502,7 @@ class HarnessEpisodeEvaluator(CandidateEvaluator):
         worker_requirements: ExecutionRequirements,
     ) -> None:
         self.episode_repeats = episode_repeats
+        self.review_scoring = scoring_rule(scorer)
         self.worker_selection = worker_selection
         self.worker_requirements = worker_requirements
         self._descriptor = descriptor
@@ -590,6 +592,7 @@ class HarnessEpisodeEvaluator(CandidateEvaluator):
             "current_scores": scores.get("current", ()),
             "episode_failures": sum(score is None for side in sides for score in scores[side]),
             "episode_repeats": self.episode_repeats,
+            "scoring_rule": self.review_scoring,
         }
         for side in sides:
             # Failure observations ride the evaluation so settlement can
@@ -601,9 +604,9 @@ class HarnessEpisodeEvaluator(CandidateEvaluator):
             metrics[f"{side}_agents"] = sum_agents(run.agents for run in runs[side])
             # Per episode, in pairing order: the root's stage path and how its turn ended.
             metrics[f"{side}_paths"] = tuple(run.path for run in runs[side])
-        if "candidate" in sides:
-            # What the first candidate episodes were graded on, so a rejected step names the task, the reply and why.
-            metrics["candidate_episodes"] = [
+        for side in sides:
+            # Retain paired task inputs and replies so a review can compare the two versions.
+            metrics[f"{side}_episodes"] = [
                 {
                     "task": clip_redacted(task, EPISODE_SUMMARY_CHARS),
                     "score": run.score,
@@ -614,7 +617,7 @@ class HarnessEpisodeEvaluator(CandidateEvaluator):
                     # Only when missing, so a summary of an ordinary episode keeps its shape.
                     **({} if run.transcript_read else {"transcript_read": False}),
                 }
-                for task, run in list(zip(tasks["candidate"], runs["candidate"], strict=True))[:EPISODE_SUMMARIES]
+                for task, run in list(zip(tasks[side], runs[side], strict=True))[:EPISODE_SUMMARIES]
             ]
         if sides != EVALUATION_SIDES:
             metrics["evaluation_sides"] = list(sides)

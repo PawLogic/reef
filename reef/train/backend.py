@@ -149,6 +149,11 @@ class CandidateBackend(CandidateEvaluator, ABC):
         return None
 
     @property
+    def harness_scoring(self) -> Mapping[str, str] | None:
+        """Current scorer details for review pages; historical results carry their own when recorded."""
+        return None
+
+    @property
     def harness_adapter(self) -> str | None:
         """The name of the harness adapter the backend evolves; ``None`` for a backend that evolves no harness."""
         return None

@@ -33,6 +33,7 @@ from reef.scenario.scenario import Scenario
 from reef.service.install_script import TOKEN_PLACEHOLDER, render_install_script
 from reef.service.release_page import before_release_id, build_release_page, build_running_step_page, result_of
 from reef.service.request_page import STATE_WORDS, build_request_page, request_state, settled_step
+from reef.service.review_files import prepare_previews
 from reef.service.wire import SCENARIO_HEADER, ProposalPayload, ReportPayload, RequestHeaders, parse_request_headers
 from reef.surface.base import InferenceHooks, InferenceLease, LeasingInferenceHooks, Surface
 from reef.surface.weights import RuntimeLoadMismatch, reported_runtime_load_id, reported_runtime_load_spans
@@ -908,6 +909,32 @@ class RequestService:
             except ArtifactError:
                 before_files = None
         backend = self.files_trainer(scenario).candidate_backend
+        metrics = rows[step].get("metrics") or {}
+        candidate_files = None
+        previews = {}
+        if (metrics.get("mutation") or metrics.get("mutations")) and metrics.get("selected") is True:
+            artifact, _ = scenario.artifact_with_metrics(str(rows[step]["release_id"]))
+            tree = scenario.surface.files
+            candidate_files = None if tree is None else tree.read_files(artifact)
+            if candidate_files is not None and before_files is not None:
+                changed = [
+                    path
+                    for path in candidate_files
+                    if "/skills/" in path and candidate_files.get(path) != before_files.get(path)
+                ]
+                removed = [path for path in before_files if "/skills/" in path and path not in candidate_files]
+                ssh_url = (link_query or {}).get("ssh", "")
+                previews = prepare_previews(candidate_files, changed, ssh_url=ssh_url)
+                previews.update(prepare_previews(before_files, removed, ssh_url=ssh_url))
+        record_status = "not_recorded"
+        if rows[step].get("operation") == "training":
+            try:
+                records = self.harness_step_records(headers, step, None)
+            except (ArtifactError, ValueError):
+                record_status = "unavailable"
+            else:
+                if any(file.get("path") == "proposer.json" for file in records.get("files", ())):
+                    record_status = "retained"
         return build_release_page(
             step,
             rows,
@@ -916,6 +943,10 @@ class RequestService:
             node_paths=None if backend is None else backend.harness_node_paths,
             link_query=link_query,
             adapter=self.harness_adapter(backend),
+            candidate_files=candidate_files,
+            previews=previews,
+            current_scoring=None if backend is None else backend.harness_scoring,
+            input_record_status=record_status,
         )
 
     @staticmethod

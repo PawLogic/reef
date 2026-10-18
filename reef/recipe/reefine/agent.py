@@ -44,6 +44,7 @@ from reef.harness.tree.render import render_composition
 from reef.recipe.reefine import evolution
 from reef.recipe.reefine.agent_gateway import AgentGateway, WorkspaceTools
 from reef.recipe.reefine.multimodal import MultimodalProvider
+from reef.recipe.reefine.output_language import SKILL_LANGUAGE
 from reef.sandbox.environment import download_directory, execute
 from reef.sandbox.process import EpisodeExecutor, EpisodeLaunchError, EpisodeTimeout
 from reef.train.cordis_backend.manifest import FailureManifest
@@ -99,7 +100,7 @@ def agent_rules(provider: MultimodalProvider | None) -> str:
             "any other of these routes answers 501. List its models with "
             f'`curl -s "$REEF_PROPOSER_URL/models?modality=speech"` (or {other_modalities}).'
         )
-    return AGENT_RULES.read_text(encoding="utf-8").replace("<!-- provider -->", note)
+    return AGENT_RULES.read_text(encoding="utf-8").replace("<!-- provider -->", note) + "\n\n" + SKILL_LANGUAGE
 
 
 def trial_env(gateway_url: str) -> dict[str, str]:

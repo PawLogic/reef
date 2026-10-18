@@ -537,6 +537,10 @@ class CordisBackend(CandidateBackend, ProposalValidator, StepRecords, StepProgre
         return self._descriptor.node_paths
 
     @property
+    def harness_scoring(self) -> Mapping[str, str] | None:
+        return self._episode_evaluator.review_scoring
+
+    @property
     def harness_adapter(self) -> str | None:
         return self._descriptor.name
 

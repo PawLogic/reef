@@ -36,6 +36,7 @@ from reef.harness.episodes.trajectory import final_assistant_text
 from reef.harness.episodes.version_check import VERSION_CHECK_ENTRY_ID, ships_version_check
 from reef.harness.tree.mutations import admit_mutations
 from reef.harness.tree.nodes import RESERVED_ENTRY_IDS
+from reef.recipe.reefine.output_language import SKILL_LANGUAGE
 from reef.train.cordis_backend import Mutation, StepProposal
 from reef.train.cordis_backend.manifest import FailureManifest
 from reef.train.cordis_backend.strategies import AgentHost, Proposer
@@ -1287,7 +1288,11 @@ def _ask(
     try:
         # A stalled endpoint holds the training thread for the whole timeout
         # before the step degrades to a skip; keep it short.
-        reply = models.served.chat([{"role": "user", "content": prompt}], timeout_s=timeout_s, max_tokens=max_tokens)
+        reply = models.served.chat(
+            [{"role": "system", "content": SKILL_LANGUAGE}, {"role": "user", "content": prompt}],
+            timeout_s=timeout_s,
+            max_tokens=max_tokens,
+        )
     except Exception as exc:
         elapsed = time.monotonic() - started
         reason = f"model call failed after {elapsed:.1f} s (max_tokens={max_tokens}): {exc}"

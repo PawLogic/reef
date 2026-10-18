@@ -14,6 +14,9 @@ episode scored). The deployment names them in ``evolution.propose`` and
 ``evolution.evaluate``. `Write a harness method <../developer-guide/write-a-harness-method.rst>`__ documents the
 contract.
 
+For this fork's file diffs, Cursor SSH links and evaluation details, see
+`PawLogic harness review <pawlogic-review.rst>`__.
+
 At a glance
 -----------
 

@@ -217,7 +217,7 @@ def test_the_page_for_a_published_step_carries_the_request_the_result_and_the_ch
         assert page.startswith("<!doctype html>") and "<title>Harness v1</title>" in page
         assert '<meta name="viewport" content="width=device-width, initial-scale=1">' in page
         assert "<h1>Harness v1</h1>" in page
-        assert _sections(page) == ["Why", "What changed", "Result", "Setup", "Chain"]
+        assert _sections(page) == ["Why", "Input", "What changed", "Result", "Evaluation", "Setup", "Chain"]
         assert FIRST in _section(page, "Why") and "3f1c2a9d0b7e" in _section(page, "Why")
         changed = _section(page, "What changed")
         assert '<span class="tag operation-update">update</span><span class="node-id">r1</span>' in changed
@@ -542,7 +542,7 @@ def test_the_page_module_is_ascii_and_the_builder_escapes_every_angle_bracket() 
     assert "reef-pi setup" in setup and "Carried from earlier steps" not in setup
     assert "Refused by the step" not in setup
     # No proposal notes on the row: no Design and no Review section.
-    assert _sections(page) == ["Why", "What changed", "Result", "Setup", "Chain"]
+    assert _sections(page) == ["Why", "Input", "What changed", "Result", "Evaluation", "Setup", "Chain"]
     data = _data(page)
     assert data["metrics"]["training_request"]["text"] == "caf\u00e9 <script>alert(1)</script>"
     assert data["metrics"]["training_request"]["requires"][1]["check"] == "osascript -e '1 < 2'"
@@ -769,7 +769,17 @@ def test_the_page_shows_the_proposers_design_and_review_and_escapes_them() -> No
     }
     page = build_release_page(1, [creation, row])
     page.encode("ascii")
-    assert _sections(page) == ["Why", "Design", "What changed", "Review", "Result", "Setup", "Chain"]
+    assert _sections(page) == [
+        "Why",
+        "Input",
+        "Design",
+        "What changed",
+        "Review",
+        "Result",
+        "Evaluation",
+        "Setup",
+        "Chain",
+    ]
     design = _section(page, "Design")
     assert '<p class="text">Add an &lt;away&gt; command.\n\nA rule alone would assume the state holds.</p>' in design
     # A design that ends with a How to use section shows it as the card after the design.
@@ -777,7 +787,7 @@ def test_the_page_shows_the_proposers_design_and_review_and_escapes_them() -> No
         row, metrics={**row["metrics"], "proposal_notes": {"design": "Add /away.\n\n## How to use\n/away on"}}
     )
     usage_page = build_release_page(1, [creation, with_usage])
-    assert _sections(usage_page)[:3] == ["Why", "Design", "How to use"]
+    assert _sections(usage_page)[:4] == ["Why", "Input", "Design", "How to use"]
     assert '<p class="text">Add /away.</p>' in _section(usage_page, "Design")
     assert '<p class="text">/away on</p>' in _section(usage_page, "How to use")
     # The heading may also lead its own line's text, as a model often writes it.
@@ -824,7 +834,17 @@ def test_the_page_shows_the_proposers_design_and_review_and_escapes_them() -> No
     # The review call failed: no result on record, but the undeclared variables still show.
     failed = {"design": "One command.", "undeclared_env": ["TWILIO_SID"]}
     page = build_release_page(1, [creation, {**row, "metrics": {**row["metrics"], "proposal_notes": failed}}])
-    assert _sections(page) == ["Why", "Design", "What changed", "Review", "Result", "Setup", "Chain"]
+    assert _sections(page) == [
+        "Why",
+        "Input",
+        "Design",
+        "What changed",
+        "Review",
+        "Result",
+        "Evaluation",
+        "Setup",
+        "Chain",
+    ]
     review = _section(page, "Review")
     assert '<p class="empty">no review on record</p>' in review and "<h3>Covered</h3>" not in review
     assert '<span class="id">TWILIO_SID</span>' in review
@@ -850,7 +870,7 @@ def test_the_result_names_why_the_proposer_produced_nothing_when_the_step_record
     assert served_step([creation, row]) == 0
     assert before_release_id(row) == "rel-0"
     assert '<span class="failed">Failed</span>' in page
-    assert _sections(page) == ["Why", "What changed", "Result", "Setup", "Chain"]
+    assert _sections(page) == ["Why", "Input", "What changed", "Result", "Evaluation", "Setup", "Chain"]
     selection_result = _section(page, "Result")
     assert "<dt>Skipped</dt><dd>no proposal</dd>" in selection_result
     assert (
@@ -866,13 +886,13 @@ def test_the_result_names_why_the_proposer_produced_nothing_when_the_step_record
     # A design written before the reply came to nothing keeps its section beside the row.
     designed = {**row, "metrics": {**row["metrics"], "proposal_notes": {"design": "A tool.", "failure": failure}}}
     page = build_release_page(1, [creation, designed])
-    assert _sections(page) == ["Why", "Design", "What changed", "Result", "Setup", "Chain"]
+    assert _sections(page) == ["Why", "Input", "Design", "What changed", "Result", "Evaluation", "Setup", "Chain"]
     assert "<h3>Proposer failure</h3>" in _section(page, "Result")
 
 
 def test_a_row_without_a_design_or_a_review_has_no_such_section() -> None:
     creation = {"release_id": "rel-0", "parent_release_id": None, "operation": "creation"}
-    plain = ["Why", "What changed", "Result", "Setup", "Chain"]
+    plain = ["Why", "Input", "What changed", "Result", "Evaluation", "Setup", "Chain"]
     for metrics in (
         {"selected": True},
         {"selected": True, "proposal_notes": {}},

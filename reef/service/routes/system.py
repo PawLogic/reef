@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 
 from aiohttp import web
 
@@ -76,9 +77,20 @@ def register_system_routes(app: web.Application, *, request_service: RequestServ
         step = int(request.match_info["step"])
         headers = page_headers(request.headers, request.query)
         # The chain's links open the way this page was opened: the query parameters travel with them.
-        link_query = {key: request.query[key] for key in ("scenario", "key") if key in request.query}
+        link_query = {key: request.query[key] for key in ("scenario", "key", "ssh") if key in request.query}
+        if "ssh" not in link_query and os.environ.get("REEF_REVIEW_SSH_URL"):
+            link_query["ssh"] = os.environ["REEF_REVIEW_SSH_URL"]
+        if "record" in request.query:
+            if request.query["record"] != "proposer.json":
+                raise web.HTTPNotFound(text="Only the retained proposer record is available here")
+            record = await asyncio.to_thread(request_service.harness_step_records, headers, step, "proposer.json")
+            if "text" not in record:
+                raise web.HTTPNotFound(text="Proposer input was not retained")
+            return web.Response(
+                text=record["text"], content_type="application/json", headers={"Cache-Control": "no-store"}
+            )
         page = await asyncio.to_thread(request_service.harness_release_page, headers, step, link_query)
-        return web.Response(text=page, content_type="text/html")
+        return web.Response(text=page, content_type="text/html", headers={"Cache-Control": "no-store"})
 
     async def harness_request_page(request: web.Request) -> web.Response:
         headers = page_headers(request.headers, request.query)
